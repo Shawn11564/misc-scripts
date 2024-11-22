@@ -99,4 +99,4 @@ local function listen()
 end
 
 -- Start the program
-parallel.watchdog(listen, 60)
+listen()
