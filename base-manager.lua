@@ -1,6 +1,6 @@
 -- Configuration
 local CONFIG = {
-    PERIPHERAL_SIDE = "left",
+    CHAT_PERIPHERAL_SIDE = "left",
     COMMAND_PREFIX = "!"
 }
 
@@ -10,32 +10,58 @@ local ALLOWED_USERS = {
 }
 
 -- Initialize peripherals
-local chat = peripheral.wrap(CONFIG.PERIPHERAL_SIDE)
+local chat = peripheral.wrap(CONFIG.CHAT_PERIPHERAL_SIDE)
+local rs = peripheral.find("rsBridge")
 if not chat then
-    error("Chat peripheral not found on " .. CONFIG.PERIPHERAL_SIDE .. " side")
+    error("Chat peripheral not found on " .. CONFIG.CHAT_PERIPHERAL_SIDE .. " side")
 end
 
 -- Command handlers
 local commandHandlers = {
-    report = function(username, args)
+    count = function(username, args)
         if not args then
-            return "Usage: !report <item>"
+            return "Usage: !count <item>"
         end
-        return "Reporting " .. args
+
+        local item = rs.getItem({ name = args })
+        if item ~= nil then
+            local count = item.amount
+            return "There are " .. count .. " " .. args .. " stored."
+        else
+            return "There are no " .. args .. " stored."
+        end
     end,
-    
+
     craft = function(username, args)
         if not args then
-            return "Usage: !craft <item>"
+            return "Usage: !craft <item> <count>"
         end
-        return "Crafting " .. args
+
+        -- split item and count args
+        local item = args:match("^(%S+)")
+        local toCraft = args:match("^%S+%s+(%d+)$")
+        
+        if not item or not toCraft then
+            return "Usage: !craft <item> <count>"
+        end
+
+        if not rs.isItemCraftable({ name = args }) then
+            return "There is no recipe for " .. args .. "."
+        end
+
+        local craftingStatus = rs.craftItem({ name = args, count = toCraft })
+        if craftingStatus == false then
+            return "There was an error crafting " .. args .. "."
+        else
+            return "Crafting " .. args .. " (" .. toCraft .. ")."
+        end
     end,
-    
+
     -- Example of a command that doesn't need args
     status = function(username)
         return "System is running normally"
     end,
-    
+
     -- Example of a command with multiple arguments
     ping = function(username, args)
         return "Pong! " .. (args or "")
@@ -47,13 +73,13 @@ local function parseCommand(message)
     if not message:match("^" .. CONFIG.COMMAND_PREFIX) then
         return nil
     end
-    
+
     local withoutPrefix = message:sub(#CONFIG.COMMAND_PREFIX + 1)
     local command = withoutPrefix:match("^(%S+)")
     if not command then
         return nil
     end
-    
+
     local args = withoutPrefix:match("^%S+%s+(.+)$")
     return command:lower(), args
 end
@@ -63,12 +89,12 @@ local function handleMessage(username, message)
     if not ALLOWED_USERS[username] then
         return
     end
-    
+
     local command, args = parseCommand(message)
     if not command then
         return
     end
-    
+
     local handler = commandHandlers[command]
     if not handler then
         local availableCommands = {}
@@ -80,7 +106,7 @@ local function handleMessage(username, message)
             table.concat(availableCommands, ", ")))
         return
     end
-    
+
     local response = handler(username, args)
     if response then
         chat.sendMessage(response)
